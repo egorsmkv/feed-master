@@ -2,9 +2,7 @@ package proc
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +52,7 @@ func NewTelegramClient(token, apiURL string, timeout time.Duration, ds DurationS
 	bot, err := tb.NewBot(tb.Settings{
 		URL:    apiURL,
 		Token:  token,
+		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
 		Client: &http.Client{Timeout: timeout},
 	})
 	if err != nil {
@@ -70,16 +69,12 @@ func NewTelegramClient(token, apiURL string, timeout time.Duration, ds DurationS
 }
 
 // Send message, skip if telegram token empty
-func (client TelegramClient) Send(channelID string, item feed.Item) (err error) {
+func (client TelegramClient) Send(channelID string, feed feed.Rss2, item feed.Item) (err error) {
 	if client.Bot == nil || channelID == "" {
 		return nil
 	}
 
-	message, err := client.sendAudio(channelID, item)
-	if err != nil && strings.Contains(err.Error(), "Request Entity Too Large") {
-		message, err = client.sendText(channelID, item)
-	}
-
+	message, err := client.sendText(channelID, feed, item)
 	if err != nil {
 		return errors.Wrapf(err, "can't send to telegram for %+v", item.Enclosure)
 	}
@@ -88,58 +83,15 @@ func (client TelegramClient) Send(channelID string, item feed.Item) (err error) 
 	return nil
 }
 
-func (client TelegramClient) sendText(channelID string, item feed.Item) (*tb.Message, error) {
+func (client TelegramClient) sendText(channelID string, feed feed.Rss2, item feed.Item) (*tb.Message, error) {
 	message, err := client.Bot.Send(
 		recipient{chatID: channelID},
-		client.getMessageHTML(item, htmlMessageParams{WithMp3Link: true}),
+		client.getMessageHTML(feed, item, htmlMessageParams{WithMp3Link: true}),
 		tb.ModeHTML,
 		tb.NoPreview,
 	)
 
 	return message, err
-}
-
-func (client TelegramClient) sendAudio(channelID string, item feed.Item) (*tb.Message, error) {
-	httpBody, err := item.DownloadAudio(client.Timeout)
-	if err != nil {
-		return nil, err
-	}
-	defer httpBody.Close() // nolint
-
-	// download audio to the temp file
-	tmpFile, err := os.CreateTemp(os.TempDir(), "feed-master-*.mp3")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err = io.Copy(tmpFile, httpBody); err != nil {
-		return nil, err
-	}
-	if closeErr := tmpFile.Close(); closeErr != nil {
-		return nil, closeErr
-	}
-
-	var dur int
-	if item.Duration != "" { // item may have duration published, if not, try to get it from mp3 file
-		if dur, err = strconv.Atoi(item.Duration); err != nil {
-			dur = client.DurationService.File(tmpFile.Name())
-		}
-	} else {
-		dur = client.DurationService.File(tmpFile.Name())
-	}
-
-	audio := tb.Audio{
-		File:      tb.FromDisk(tmpFile.Name()),
-		FileName:  item.GetFilename(),
-		MIME:      "audio/mpeg",
-		Caption:   client.getMessageHTML(item, htmlMessageParams{TrimCaption: true}),
-		Title:     item.Title,
-		Performer: item.Author,
-		Duration:  dur,
-	}
-
-	return client.TelegramSender.Send(audio, client.Bot, recipient{chatID: channelID}, &tb.SendOptions{ParseMode: tb.ModeHTML})
 }
 
 // https://core.telegram.org/bots/api#html-style
@@ -152,7 +104,7 @@ func (client TelegramClient) tagLinkOnlySupport(htmlText string) string {
 type htmlMessageParams struct{ WithMp3Link, TrimCaption bool }
 
 // getMessageHTML generates HTML message from provided feed.Item
-func (client TelegramClient) getMessageHTML(item feed.Item, params htmlMessageParams) string {
+func (client TelegramClient) getMessageHTML(feed feed.Rss2, item feed.Item, params htmlMessageParams) string {
 	var header, footer string
 	title := strings.TrimSpace(item.Title)
 	if title != "" && item.Link == "" {
@@ -161,23 +113,10 @@ func (client TelegramClient) getMessageHTML(item feed.Item, params htmlMessagePa
 		header = fmt.Sprintf("<a href=%q>%s</a>\n\n", item.Link, title)
 	}
 
-	if params.WithMp3Link {
-		footer += fmt.Sprintf("\n\n%s", item.Enclosure.URL)
-	}
+	feed.Title = strings.TrimSpace(feed.Title)
+	feedTitle := fmt.Sprintf("<b>%s</b>\n\n", feed.Title)
 
-	description := string(item.Description)
-	description = strings.TrimPrefix(description, "<![CDATA[")
-	description = strings.TrimSuffix(description, "]]>")
-	// apparently bluemonday doesn't remove escaped HTML tags
-	description = client.tagLinkOnlySupport(html.UnescapeString(description))
-	description = strings.TrimSpace(description)
-
-	// https://limits.tginfo.me/en 1024 symbol limit for caption
-	if params.TrimCaption && len(header+description+footer) > 1024 {
-		description = CropText(description, 1024-len(header+footer))
-	}
-
-	return header + description + footer
+	return feedTitle + header + footer
 }
 
 type recipient struct {

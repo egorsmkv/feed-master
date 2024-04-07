@@ -16,7 +16,7 @@ import (
 
 // TelegramNotif is interface to send messages to telegram
 type TelegramNotif interface {
-	Send(chanID string, item feed.Item) error
+	Send(chanID string, feed feed.Rss2, item feed.Item) error
 }
 
 // Processor is a feed reader and store writer
@@ -97,7 +97,7 @@ func (p *Processor) processFeed(name, url, telegramChannel string, max int, filt
 
 		rptr := repeater.NewDefault(3, 5*time.Second)
 		err = rptr.Do(context.Background(), func() error {
-			if e := p.TelegramNotif.Send(telegramChannel, item); e != nil {
+			if e := p.TelegramNotif.Send(telegramChannel, rss, item); e != nil {
 				log.Printf("[WARN] failed attempt to send telegram message, url=%s to channel=%s, %v",
 					item.Enclosure.URL, telegramChannel, e)
 				return err

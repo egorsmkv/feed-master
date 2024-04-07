@@ -1,10 +1,21 @@
 feeds:
+  rust:
+    title: Rust blogs
+    description: Rust blogs
+    link: http://localhost
+    language: "en-US"
+    telegram_channel: -1001869387030
+    sources:
+      - name: Steve Klabnik
+        url: https://steveklabnik.com/feed.xml
+      - name: without.boats
+        url: https://without.boats/index.xml
   engineering:
     title: Engineering blogs
     description: Engineering blogs
     link: http://localhost
     language: "en-US"
-    telegram_channel: udev_test
+    telegram_channel: -1002020551433
     sources:
       - name: Google
         url: https://feeds.feedburner.com/GDBcode
@@ -14,8 +25,8 @@ feeds:
         url: https://netflixtechblog.com/feed
       - name: Airbnb
         url: https://medium.com/feed/airbnb-engineering
-      - name: Uber
-        url: https://www.uber.com/en-UA/blog/engineering/rss/
+      # - name: Uber
+      #   url: https://www.uber.com/en-US/blog/engineering/rss/
       - name: AWS
         url: https://aws.amazon.com/blogs/aws/feed/
       - name: MicrosoftAI
