@@ -1,0 +1,40 @@
+feeds:
+  engineering:
+    title: Engineering blogs
+    description: Engineering blogs
+    link: http://localhost
+    language: "en-US"
+    telegram_channel: udev_test
+    sources:
+      - name: Google
+        url: https://feeds.feedburner.com/GDBcode
+      - name: Meta
+        url: https://engineering.fb.com/feed/
+      - name: Netflix
+        url: https://netflixtechblog.com/feed
+      - name: Airbnb
+        url: https://medium.com/feed/airbnb-engineering
+      - name: Uber
+        url: https://www.uber.com/en-UA/blog/engineering/rss/
+      - name: AWS
+        url: https://aws.amazon.com/blogs/aws/feed/
+      - name: MicrosoftAI
+        url: https://blogs.microsoft.com/ai/feed/
+      - name: LinkedIn
+        url: https://blogs.microsoft.com/ai/feed/
+      - name: Spotify
+        url: https://engineering.atspotify.com/feed/
+      - name: GitHub
+        url: https://github.blog/feed/
+      - name: Dropbox
+        url: https://dropbox.tech/feed
+
+# Other sources
+# https://medium.com/@sujathamudadla1213/here-is-an-expanded-list-of-engineering-blogs-from-well-known-companies-edccca5d9530
+
+system:
+  update: 1m
+  max_per_feed: 10
+  max_total: 50
+  max_keep: 200
+  base_url: http://localhost:8080
