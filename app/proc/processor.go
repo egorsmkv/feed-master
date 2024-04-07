@@ -14,17 +14,9 @@ import (
 	"github.com/umputun/feed-master/app/feed"
 )
 
-//go:generate moq -out mocks/telegram_notif.go -pkg mocks -skip-ensure -fmt goimports . TelegramNotif
-//go:generate moq -out mocks/twitter_notif.go -pkg mocks -skip-ensure -fmt goimports . TwitterNotif
-
 // TelegramNotif is interface to send messages to telegram
 type TelegramNotif interface {
 	Send(chanID string, item feed.Item) error
-}
-
-// TwitterNotif is interface to send message to twitter
-type TwitterNotif interface {
-	Send(item feed.Item) error
 }
 
 // Processor is a feed reader and store writer
@@ -32,7 +24,6 @@ type Processor struct {
 	Conf          *config.Conf
 	Store         *BoltDB
 	TelegramNotif TelegramNotif
-	TwitterNotif  TwitterNotif
 }
 
 // Do activate loop of goroutine for each feed, concurrency limited by p.Conf.Concurrent
@@ -116,10 +107,6 @@ func (p *Processor) processFeed(name, url, telegramChannel string, max int, filt
 		if err != nil {
 			log.Printf("[WARN] failed to send telegram message, url=%s to channel=%s, %v",
 				item.Enclosure.URL, telegramChannel, err)
-		}
-
-		if err := p.TwitterNotif.Send(item); err != nil {
-			log.Printf("[WARN] failed send twitter message, url=%s, %v", item.Enclosure.URL, err)
 		}
 	}
 

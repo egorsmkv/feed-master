@@ -1,17 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path"
 	"strings"
-	"text/template"
 	"time"
-
-	"github.com/ChimeraCoder/anaconda"
 
 	log "github.com/go-pkgz/lgr"
 	"github.com/google/uuid"
@@ -21,7 +17,6 @@ import (
 	"github.com/umputun/feed-master/app/api"
 	"github.com/umputun/feed-master/app/config"
 	"github.com/umputun/feed-master/app/duration"
-	rssfeed "github.com/umputun/feed-master/app/feed"
 	"github.com/umputun/feed-master/app/proc"
 	"github.com/umputun/feed-master/app/youtube"
 	ytfeed "github.com/umputun/feed-master/app/youtube/feed"
@@ -38,14 +33,9 @@ type options struct {
 	TelegramChannel string        `long:"telegram_chan" env:"TELEGRAM_CHAN" description:"single telegram channel, overrides config"`
 	UpdateInterval  time.Duration `long:"update-interval" env:"UPDATE_INTERVAL" default:"1m" description:"update interval, overrides config"`
 
-	TelegramServer        string        `long:"telegram_server" env:"TELEGRAM_SERVER" default:"https://api.telegram.org" description:"telegram bot api server"`
-	TelegramToken         string        `long:"telegram_token" env:"TELEGRAM_TOKEN" description:"telegram token"`
-	TelegramTimeout       time.Duration `long:"telegram_timeout" env:"TELEGRAM_TIMEOUT" default:"1m" description:"telegram timeout"`
-	TwitterConsumerKey    string        `long:"consumer-key" env:"TWI_CONSUMER_KEY" description:"twitter consumer key"`
-	TwitterConsumerSecret string        `long:"consumer-secret" env:"TWI_CONSUMER_SECRET" description:"twitter consumer secret"`
-	TwitterAccessToken    string        `long:"access-token" env:"TWI_ACCESS_TOKEN" description:"twitter access token"`
-	TwitterAccessSecret   string        `long:"access-secret" env:"TWI_ACCESS_SECRET" description:"twitter access secret"`
-	TwitterTemplate       string        `long:"template" env:"TEMPLATE" default:"{{.Title}} - {{.Link}}" description:"twitter message template"`
+	TelegramServer  string        `long:"telegram_server" env:"TELEGRAM_SERVER" default:"https://api.telegram.org" description:"telegram bot api server"`
+	TelegramToken   string        `long:"telegram_token" env:"TELEGRAM_TOKEN" description:"telegram token"`
+	TelegramTimeout time.Duration `long:"telegram_timeout" env:"TELEGRAM_TIMEOUT" default:"1m" description:"telegram timeout"`
 
 	AdminPasswd string `long:"admin-passwd" env:"ADMIN_PASSWD" description:"admin password for protected endpoints"`
 
@@ -87,7 +77,7 @@ func main() {
 		log.Fatalf("[ERROR] failed to initialize telegram client %s, %v", opts.TelegramToken, err)
 	}
 
-	p := &proc.Processor{Conf: conf, Store: procStore, TelegramNotif: telegramNotif, TwitterNotif: makeTwitter(opts)}
+	p := &proc.Processor{Conf: conf, Store: procStore, TelegramNotif: telegramNotif}
 	go func() {
 		if err := p.Do(context.Background()); err != nil {
 			log.Printf("[ERROR] processor failed: %v", err)
@@ -167,28 +157,6 @@ func makeBoltDB(dbFile string) (*bolt.DB, error) {
 	}
 
 	return db, err
-}
-
-func makeTwitter(opts options) *proc.TwitterClient {
-	twitterFmtFn := func(item rssfeed.Item) string {
-		b1 := bytes.Buffer{}
-		if err := template.Must(template.New("twi").Parse(opts.TwitterTemplate)).Execute(&b1, item); err != nil { // nolint
-			// template failed to parse record, backup predefined format
-			return fmt.Sprintf("%s - %s", item.Title, item.Link)
-		}
-		return strings.ReplaceAll(proc.CleanText(b1.String(), 280), `\n`, "\n") // \n in template
-	}
-
-	twiAuth := proc.TwitterAuth{
-		ConsumerKey:    opts.TwitterConsumerKey,
-		ConsumerSecret: opts.TwitterConsumerSecret,
-		AccessToken:    opts.TwitterAccessToken,
-		AccessSecret:   opts.TwitterAccessSecret,
-	}
-
-	twitPoster := anaconda.NewTwitterApiWithCredentials(twiAuth.AccessToken, twiAuth.AccessSecret, twiAuth.ConsumerKey, twiAuth.ConsumerSecret)
-
-	return proc.NewTwitterClient(twiAuth, twitterFmtFn, twitPoster)
 }
 
 func setupLog(dbg bool) {

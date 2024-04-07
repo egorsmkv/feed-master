@@ -22,11 +22,6 @@ import (
 	ytfeed "github.com/umputun/feed-master/app/youtube/feed"
 )
 
-//go:generate moq -out mocks/downloader.go -pkg mocks -skip-ensure -fmt goimports . DownloaderService
-//go:generate moq -out mocks/channel.go -pkg mocks -skip-ensure -fmt goimports . ChannelService
-//go:generate moq -out mocks/store.go -pkg mocks -skip-ensure -fmt goimports . StoreService
-//go:generate moq -out mocks/duration.go -pkg mocks -skip-ensure -fmt goimports . DurationService
-
 // Service loads audio from youtube channels
 type Service struct {
 	Feeds           []FeedInfo

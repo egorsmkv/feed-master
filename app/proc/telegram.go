@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/denisbrodbeck/striphtmltags"
 	log "github.com/go-pkgz/lgr"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/pkg/errors"
@@ -17,9 +18,6 @@ import (
 
 	"github.com/umputun/feed-master/app/feed"
 )
-
-//go:generate moq -out mocks/tg_sender.go -pkg mocks -skip-ensure -fmt goimports . TelegramSender
-//go:generate moq -out mocks/duration.go -pkg mocks -skip-ensure -fmt goimports . DurationService
 
 // TelegramClient client
 type TelegramClient struct {
@@ -200,6 +198,24 @@ func CropText(inp string, max int) string {
 		return CleanText(inp, max)
 	}
 	return inp
+}
+
+// CleanText removes html tags and shrinks result
+func CleanText(inp string, max int) string {
+	res := striphtmltags.StripTags(inp)
+	if len([]rune(res)) > max {
+		// 4 symbols reserved for space and three dots on the end
+		snippet := []rune(res)[:max-4]
+		// go back in snippet and found first space
+		for i := len(snippet) - 1; i >= 0; i-- {
+			if snippet[i] == ' ' {
+				snippet = snippet[:i]
+				break
+			}
+		}
+		res = string(snippet) + " ..."
+	}
+	return res
 }
 
 // TelegramSenderImpl is a TelegramSender implementation that sends messages to Telegram for real

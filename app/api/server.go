@@ -32,9 +32,6 @@ import (
 	ytfeed "github.com/umputun/feed-master/app/youtube/feed"
 )
 
-//go:generate moq -out mocks/yt_service.go -pkg mocks -skip-ensure -fmt goimports . YoutubeSvc
-//go:generate moq -out mocks/store.go -pkg mocks -skip-ensure -fmt goimports . Store
-
 // Server provides HTTP API
 type Server struct {
 	Version       string
