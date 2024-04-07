@@ -1,2 +1,2 @@
 build:
-	go build -o feed-master main.go
+	go build -ldflags="-s -w" -o feed-master main.go
