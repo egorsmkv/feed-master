@@ -1,6 +1,6 @@
 module github.com/umputun/feed-master
 
-go 1.22.0
+go 1.22.2
 
 require (
 	github.com/bogem/id3v2/v2 v2.1.4
