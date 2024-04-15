@@ -1,4 +1,25 @@
 feeds:
+  go:
+    title: Go blogs
+    description: Go blogs
+    link: http://localhost
+    language: "en-US"
+    telegram_channel: -1002049812124
+    sources:
+      - name: The Go Blog
+        url: https://go.dev/blog/feed.atom?format=xml
+      - name: Applied Go
+        url: https://appliedgo.net/index.xml
+      - name: Go Time
+        url: https://changelog.com/gotime/feed
+      - name: Ardan Labs
+        url: https://www.ardanlabs.com/categories/go-programing/index.xml
+      - name: Golang Code
+        url: https://www.golangcode.com/index.xml
+      - name: Golang Libs
+        url: https://golang.ch/feed/
+      - name: hacker-news
+        url: https://hnrss.org/newest?q=golang
   rust:
     title: Rust blogs
     description: Rust blogs
@@ -10,6 +31,8 @@ feeds:
         url: https://steveklabnik.com/feed.xml
       - name: without.boats
         url: https://without.boats/index.xml
+      - name: hacker-news
+        url: https://hnrss.org/newest?q=rust
   engineering:
     title: Engineering blogs
     description: Engineering blogs
