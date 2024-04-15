@@ -216,58 +216,6 @@ func (s *Server) getFeedsPageCtrl(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data) // nolint
 }
 
-// GET /yt/channels - renders page with list of YouTube channels
-func (s *Server) getYoutubeChannelsPageCtrl(w http.ResponseWriter, r *http.Request) {
-	data, err := s.cache.Get("channels", func() ([]byte, error) {
-		type channelItem struct {
-			youtube.FeedInfo
-			ChannelURL  string
-			LastUpdated time.Time
-			RssURL      string
-		}
-		var channelItems []channelItem
-
-		for _, k := range s.Conf.YouTube.Channels {
-			items, loadErr := s.YoutubeStore.Load(k.ID, 1)
-			if loadErr != nil {
-				continue
-			}
-			item := channelItem{
-				FeedInfo:    k,
-				RssURL:      s.Conf.YouTube.BaseChanURL + k.ID,
-				ChannelURL:  "https://youtube.com/channel/" + k.ID,
-				LastUpdated: items[0].Published.In(time.UTC),
-			}
-			if k.Type == ytfeed.FTPlaylist {
-				item.RssURL = s.Conf.YouTube.BasePlaylistURL + k.ID
-				item.ChannelURL = "https://www.youtube.com/playlist?list=" + k.ID
-			}
-			channelItems = append(channelItems, item)
-		}
-
-		tmplData := struct {
-			Channels []channelItem
-			Count    int
-		}{
-			Channels: channelItems,
-			Count:    len(channelItems),
-		}
-
-		res := bytes.NewBuffer(nil)
-		err := s.templates.ExecuteTemplate(res, "channels.tmpl", &tmplData)
-		return res.Bytes(), err
-	})
-
-	if err != nil {
-		s.renderErrorPage(w, r, err, 400)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data) // nolint
-}
-
 // GET /feed/{name}/sources - renders page with feed's list of sources
 func (s *Server) getSourcesPageCtrl(w http.ResponseWriter, r *http.Request) {
 	feedName := chi.URLParam(r, "name")

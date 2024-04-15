@@ -3,13 +3,16 @@ package api
 
 import (
 	"context"
-	"crypto/subtle"
+	"embed"
 	"encoding/xml"
 	"fmt"
 	"html/template"
+	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -86,11 +89,14 @@ func (s *Server) Run(ctx context.Context, port int) {
 		}
 	}()
 
-	if s.TemplLocation == "" {
-		s.TemplLocation = "webapp/templates/*"
+	// Parse the templates from the embedded file system
+	tmpl, err := template.ParseFS(templatesFS, "templates/*")
+	if err != nil {
+		log.Printf("[ERROR] failed to parse templates, %v", err)
+		return
 	}
-	log.Printf("[DEBUG] loading templates from %s", s.TemplLocation)
-	s.templates = template.Must(template.ParseGlob(s.TemplLocation))
+
+	s.templates = tmpl
 
 	serverLock.Lock()
 	s.httpServer = &http.Server{
@@ -134,19 +140,11 @@ func (s *Server) router() *chi.Mux {
 
 	router.Get("/config", func(w http.ResponseWriter, _ *http.Request) { rest.RenderJSON(w, s.Conf) })
 
-	router.Route("/yt", func(r chi.Router) {
-
-		auth := rest.BasicAuth(func(user, passwd string) bool {
-			return (subtle.ConstantTimeCompare([]byte(s.AdminPasswd), []byte(passwd)) +
-				subtle.ConstantTimeCompare([]byte("admin"), []byte(user))) == 2
-		})
-
-		l := logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]"), logger.IPfn(logger.AnonymizeIP))
-		r.Use(l.Handler)
-		r.Get("/rss/{channel}", s.getYoutubeFeedCtrl)
-		r.Get("/channels", s.getYoutubeChannelsPageCtrl)
-		r.With(auth).Post("/rss/generate", s.regenerateRSSCtrl)
-		r.With(auth).Delete("/entry/{channel}/{video}", s.removeEntryCtrl)
+	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		err := tryRead(assetsFS, "static", r.URL.Path, w)
+		if err == nil {
+			return
+		}
 	})
 
 	if s.Conf.YouTube.BaseURL != "" {
@@ -167,12 +165,6 @@ func (s *Server) router() *chi.Mux {
 		}
 	}
 
-	fs, err := rest.NewFileServer("/static", filepath.Join("webapp", "static"))
-	if err == nil {
-		router.Mount("/static", fs)
-	} else {
-		log.Printf("[WARN] can't start static file server, %v", err)
-	}
 	return router
 }
 
@@ -277,29 +269,6 @@ func (s *Server) getListCtrl(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, feeds)
 }
 
-// GET /yt/rss/{channel} - returns rss for given youtube channel
-func (s *Server) getYoutubeFeedCtrl(w http.ResponseWriter, r *http.Request) {
-	channel := chi.URLParam(r, "channel")
-
-	fi := youtube.FeedInfo{ID: channel}
-	for _, f := range s.Conf.YouTube.Channels {
-		if f.ID == channel {
-			fi = f
-			break
-		}
-	}
-
-	res, err := s.YoutubeSvc.RSSFeed(fi)
-	if err != nil {
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusInternalServerError, err, "failed to read yt list")
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/xml; charset=UTF-8")
-	res = `<?xml version="1.0" encoding="UTF-8"?>` + "\n" + res
-	_, _ = fmt.Fprintf(w, "%s", res)
-}
-
 // POST /yt/rss/generate - generates rss for all (each) youtube channels
 func (s *Server) regenerateRSSCtrl(w http.ResponseWriter, r *http.Request) {
 
@@ -333,4 +302,23 @@ func (s *Server) feeds() []string {
 		feeds = append(feeds, k)
 	}
 	return feeds
+}
+
+func tryRead(fs embed.FS, prefix, requestedPath string, w http.ResponseWriter) error {
+	f, err := fs.Open(path.Join(prefix, requestedPath))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	stat, _ := f.Stat()
+	if stat.IsDir() {
+		return errors.New("path is dir")
+	}
+
+	contentType := mime.TypeByExtension(filepath.Ext(requestedPath))
+	w.Header().Set("Content-Type", contentType)
+	_, err = io.Copy(w, f)
+
+	return err
 }
