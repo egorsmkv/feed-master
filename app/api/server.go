@@ -10,8 +10,6 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -118,14 +116,6 @@ func (s *Server) router() *chi.Mux {
 	router.Use(rest.AppInfo("feed-master", "umputun", s.Version), rest.Ping)
 	router.Use(tollbooth_chi.LimitHandler(tollbooth.NewLimiter(5, nil)))
 
-	router.Group(func(rimg chi.Router) {
-		l := logger.New(logger.Log(log.Default()), logger.Prefix("[DEBUG]"), logger.IPfn(logger.AnonymizeIP))
-		rimg.Use(l.Handler)
-		rimg.Get("/images/{name}", s.getImageCtrl)
-		rimg.Get("/image/{name}", s.getImageCtrl)
-		rimg.Get("/image/{name}.png", s.getImageCtrl)
-	})
-
 	router.Group(func(rrss chi.Router) {
 		l := logger.New(logger.Log(log.Default()), logger.Prefix("[INFO]"), logger.IPfn(logger.AnonymizeIP))
 		rrss.Use(l.Handler)
@@ -146,24 +136,6 @@ func (s *Server) router() *chi.Mux {
 			return
 		}
 	})
-
-	if s.Conf.YouTube.BaseURL != "" {
-		baseYtURL, parseErr := url.Parse(s.Conf.YouTube.BaseURL)
-		if parseErr != nil {
-			log.Printf("[ERROR] failed to parse base url %s, %v", s.Conf.YouTube.BaseURL, parseErr)
-		}
-
-		if mkdirErr := os.MkdirAll(s.Conf.YouTube.FilesLocation, 0o750); mkdirErr != nil {
-			log.Printf("[ERROR] failed to create directory %s, %v", s.Conf.YouTube.FilesLocation, mkdirErr)
-		}
-
-		ytfs, fsErr := rest.NewFileServer(baseYtURL.Path, s.Conf.YouTube.FilesLocation)
-		if fsErr == nil {
-			router.Mount(baseYtURL.Path, ytfs)
-		} else {
-			log.Printf("[WARN] can't start static file server for yt, %v", fsErr)
-		}
-	}
 
 	return router
 }
@@ -240,60 +212,10 @@ func (s *Server) getFeedCtrl(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "%s", data)
 }
 
-// GET /image/{name}
-func (s *Server) getImageCtrl(w http.ResponseWriter, r *http.Request) {
-	fm := chi.URLParam(r, "name")
-	fm = strings.TrimSuffix(fm, ".png")
-	feedConf, found := s.Conf.Feeds[fm]
-	if !found {
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest,
-			fmt.Errorf("image %s not found", fm), "failed to load image")
-		return
-	}
-
-	b, err := os.ReadFile(feedConf.Image)
-	if err != nil {
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusBadRequest,
-			errors.New("can't read  "+chi.URLParam(r, "name")), "failed to read image")
-		return
-	}
-	w.Header().Set("Content-Type", "image/png")
-	if _, err := w.Write(b); err != nil {
-		log.Printf("[WARN] failed to send image, %s", err)
-	}
-}
-
 // GET /list - returns feed's image
 func (s *Server) getListCtrl(w http.ResponseWriter, r *http.Request) {
 	feeds := s.feeds()
 	render.JSON(w, r, feeds)
-}
-
-// POST /yt/rss/generate - generates rss for all (each) youtube channels
-func (s *Server) regenerateRSSCtrl(w http.ResponseWriter, r *http.Request) {
-
-	for _, f := range s.Conf.YouTube.Channels {
-		res, err := s.YoutubeSvc.RSSFeed(youtube.FeedInfo{ID: f.ID})
-		if err != nil {
-			rest.SendErrorJSON(w, r, log.Default(), http.StatusInternalServerError, err, "failed to read yt rss for "+f.ID)
-			return
-		}
-		if err := s.YoutubeSvc.StoreRSS(f.ID, res); err != nil {
-			rest.SendErrorJSON(w, r, log.Default(), http.StatusInternalServerError, err, "failed to store yt rss for "+f.ID)
-			return
-		}
-	}
-	rest.RenderJSON(w, rest.JSON{"status": "ok", "feeds": len(s.Conf.YouTube.Channels)})
-}
-
-// DELETE /yt/entry/{channel}/{video} - deletes entry from youtube channel and videID
-func (s *Server) removeEntryCtrl(w http.ResponseWriter, r *http.Request) {
-	err := s.YoutubeSvc.RemoveEntry(ytfeed.Entry{ChannelID: chi.URLParam(r, "channel"), VideoID: chi.URLParam(r, "video")})
-	if err != nil {
-		rest.SendErrorJSON(w, r, log.Default(), http.StatusInternalServerError, err, "failed to remove entry")
-		return
-	}
-	rest.RenderJSON(w, rest.JSON{"status": "ok", "removed": chi.URLParam(r, "video")})
 }
 
 func (s *Server) feeds() []string {
