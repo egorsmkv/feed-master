@@ -1,3 +1,5 @@
+> The project has moved to https://github.com/egorsmkv/feed-supermaster
+
 Changes:
 
 - Remove unnecessary stuff (see the mother repo - https://github.com/umputun/feed-master - for that stuff)
